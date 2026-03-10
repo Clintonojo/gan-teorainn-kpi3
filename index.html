@@ -11,19 +11,23 @@ body {
   background: #f2f5f9;
   font-family: 'Segoe UI', sans-serif;
   padding: 20px;
+  transition: background 0.3s, color 0.3s;
 }
-
+body.dark-mode {
+  background: #121212;
+  color: #eee;
+}
 h1, h2 {
   color: #0b2a4a;
+  transition: color 0.3s;
 }
-
+body.dark-mode h1, body.dark-mode h2 { color: #fff; }
 .grid-container {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(25px, 1fr));
   gap: 2px;
   margin-bottom: 20px;
 }
-
 .grid-box {
   width: 100%;
   aspect-ratio: 1 / 1;
@@ -36,23 +40,28 @@ h1, h2 {
   justify-content: center;
   transition: background 0.2s, color 0.2s;
 }
-
+body.dark-mode .grid-box { background: #333; border-color: #555; color: #eee; }
 .grid-box.active {
   background: #0b2a4a;
   color: #fff;
   font-weight: bold;
 }
+body.dark-mode .grid-box.active { background: #00aaff; color: #000; }
 </style>
 </head>
 <body>
 
 <div class="container">
-  <h1 class="text-center mb-4">Gan Teorainn KPI Tracker</h1>
+  <div class="d-flex justify-content-between mb-3 align-items-center">
+    <h1>Gan Teorainn KPI Tracker</h1>
+    <button id="toggleDark" class="btn btn-secondary btn-sm">Dark Mode</button>
+  </div>
 
   <h2 class="text-center mb-3">Click each box when you say hello</h2>
   <div class="grid-container" id="helloGrid"></div>
-  <div class="d-flex justify-content-center mb-4">
+  <div class="d-flex justify-content-center mb-4 gap-2 flex-wrap">
     <button id="resetGrid" class="btn btn-primary">Reset Grid</button>
+    <button id="exportCSV" class="btn btn-success">Export CSV</button>
   </div>
 
   <h2 class="text-center mb-3">Hourly KPI Table (Manual Input)</h2>
@@ -76,18 +85,16 @@ h1, h2 {
 
 <script>
 // --- LocalStorage for KPI data ---
-let kpiData = JSON.parse(localStorage.getItem('kpiData')) || {}; 
-
+let kpiData = JSON.parse(localStorage.getItem('kpiData')) || {};
 const totalBoxes = 600;
 const helloGrid = document.getElementById('helloGrid');
 
-// --- Function to get Irish time hour (11-19h) ---
+// --- Get Irish hour (11–19h)
 function getIrishHour() {
   const now = new Date();
   let utcHour = now.getUTCHours();
-  // offset in hours: local Irish time
-  const offset = now.getTimezoneOffset() / 60;
-  let hour = Math.round(utcHour - offset);
+  const offset = 0; // GMT/Irish time is UTC+0
+  let hour = utcHour + offset;
   if (hour < 11) hour = 11;
   if (hour > 19) hour = 19;
   return hour;
@@ -111,7 +118,7 @@ document.getElementById('resetGrid').addEventListener('click', () => {
   updateAttempts();
 });
 
-// --- Generate KPI table rows (11-19h) ---
+// --- Generate KPI table rows (11–19h) ---
 const kpiTableBody = document.getElementById('kpiTableBody');
 for (let hour = 11; hour <= 19; hour++) {
   const row = document.createElement('tr');
@@ -136,7 +143,7 @@ for (let hour = 11; hour <= 19; hour++) {
     // save manual input
     input.addEventListener('input', () => {
       if (!kpiData[hour]) kpiData[hour] = {};
-      if (metric === 'attempts') return; // attempts handled by grid
+      if (metric === 'attempts') return;
       kpiData[hour][metric] = parseInt(input.value) || 0;
       localStorage.setItem('kpiData', JSON.stringify(kpiData));
     });
@@ -148,7 +155,7 @@ for (let hour = 11; hour <= 19; hour++) {
   kpiTableBody.appendChild(row);
 }
 
-// --- Update Attempts column from grid ---
+// --- Update Attempts from grid ---
 function updateAttempts() {
   const currentHour = getIrishHour();
   const activeBoxes = Array.from(document.querySelectorAll('.grid-box.active'));
@@ -164,7 +171,7 @@ function updateAttempts() {
   localStorage.setItem('kpiData', JSON.stringify(kpiData));
 }
 
-// --- Restore grid from saved attempts ---
+// --- Restore grid on load ---
 function restoreGrid() {
   const currentHour = getIrishHour();
   if (kpiData[currentHour] && kpiData[currentHour]['attempts']) {
@@ -176,10 +183,35 @@ function restoreGrid() {
     });
   }
 }
-
-// Run restore on load
 restoreGrid();
 updateAttempts();
+
+// --- Dark Mode Toggle ---
+document.getElementById('toggleDark').addEventListener('click', () => {
+  document.body.classList.toggle('dark-mode');
+});
+
+// --- Export CSV ---
+document.getElementById('exportCSV').addEventListener('click', () => {
+  let csvContent = 'Hour,Attempts,BTS,CFS,Closed,Form,Donor\n';
+  for (let hour = 11; hour <= 19; hour++) {
+    const row = kpiData[hour] || {};
+    const attempts = row.attempts ? row.attempts.length : 0;
+    const bts = row.bts || 0;
+    const cfs = row.cfs || 0;
+    const closed = row.closed || 0;
+    const form = row.form || 0;
+    const donor = row.donor || 0;
+    csvContent += `${hour},${attempts},${bts},${cfs},${closed},${form},${donor}\n`;
+  }
+
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.setAttribute('href', url);
+  link.setAttribute('download', `kpi-${new Date().toISOString().slice(0,10)}.csv`);
+  link.click();
+});
 </script>
 
 </body>
